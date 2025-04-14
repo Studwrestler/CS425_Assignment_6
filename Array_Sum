@@ -1,0 +1,69 @@
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define N 1000000
+#define NUM_THREADS 4
+
+int array[N];
+long long total_sum = 0;
+pthread_mutex_t sum_mutex;
+
+typedef struct {
+    int start;
+    int end;
+} ThreadData;
+
+void* compute_partial_sum(void* arg) {
+    ThreadData* data = (ThreadData*)arg;
+    long long local_sum = 0;
+
+    for (int i = data->start; i < data->end; i++) {
+        local_sum += array[i];
+    }
+
+    pthread_mutex_lock(&sum_mutex);
+    total_sum += local_sum;
+    pthread_mutex_unlock(&sum_mutex);
+
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t threads[NUM_THREADS];
+    ThreadData thread_data[NUM_THREADS];
+
+    for (int i = 0; i < N; i++) {
+        array[i] = i + 1;
+    }
+
+    pthread_mutex_init(&sum_mutex, NULL);
+
+    int chunk_size = N / NUM_THREADS;
+
+    clock_t start_time = clock();
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        thread_data[i].start = i * chunk_size;
+        thread_data[i].end = (i == NUM_THREADS - 1) ? N : (i + 1) * chunk_size;
+        pthread_create(&threads[i], NULL, compute_partial_sum, &thread_data[i]);
+    }
+
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    clock_t end_time = clock();
+    double time_taken = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+
+    long long expected_sum = ((long long)N * (N + 1)) / 2;
+    printf("Total Sum: %lld\n", total_sum);
+    printf("Expected Sum (Gauss Formula): %lld\n", expected_sum);
+    printf("Correctness: %s\n", (total_sum == expected_sum) ? "Correct" : "Incorrect");
+    printf("Wall Time: %f seconds\n", time_taken);
+
+    pthread_mutex_destroy(&sum_mutex);
+
+    return 0;
+}
